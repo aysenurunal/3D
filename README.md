@@ -5,28 +5,22 @@ model.
 
 ## Goal
 
-Build a pipeline that takes a small object photo set, generates a 3D asset,
-cleans and remeshes the geometry, then exports a printable STL/3MF file.
+Build a pipeline that takes a small object photo set, generates a 3D mesh with
+an image-to-3D backend, checks and repairs the geometry, then exports a
+printable STL/3MF file.
+
+## Primary References
+
+- [TencentARC/InstantMesh](https://github.com/TencentARC/InstantMesh): Primary image-to-3D mesh generation backend. It generates 3D meshes from a single image using sparse-view reconstruction.
+- [microsoft/TRELLIS.2](https://github.com/microsoft/TRELLIS.2): Optional alternative image-to-3D generation backend.
 
 ## Initial Architecture
 
 1. `input`: Capture 5-6 photos of the object.
-2. `preprocess`: Clean the background, crop the object, prepare masks, and run quality checks.
-3. `generate`: Use TRELLIS.2 to create a raw 3D asset.
-4. `export`: Export the generated result as GLB/OBJ.
-5. `convert`: Convert GLB to OBJ/PLY if the remesh stage needs it.
-6. `remesh`: Use Instant Meshes to simplify and improve the mesh topology.
-7. `print-prep`: Check manifoldness, fix normals, scale the model, and export STL/3MF.
-
-## Repositories
-
-- [microsoft/TRELLIS.2](https://github.com/microsoft/TRELLIS.2): Image-to-3D generation layer.
-- [wjakob/instant-meshes](https://github.com/wjakob/instant-meshes): Retopology/remeshing layer for generated meshes.
-
-Note: `wjakob/instant-meshes` is not the same as image-to-3D projects named
-`InstantMesh`. It does not convert photos into 3D models. In this project, it
-is used after TRELLIS.2 to make the generated mesh cleaner and more suitable
-for 3D printing.
+2. `preprocess`: Normalize names, copy photos, and select the strongest primary image.
+3. `generate`: Use TencentARC InstantMesh by default, or TRELLIS.2 as an optional backend.
+4. `convert`: Convert GLB to OBJ/PLY only when the chosen backend needs it.
+5. `print-prep`: Check manifoldness, fix normals, scale the model, and export STL/3MF.
 
 ## MVP
 
@@ -35,9 +29,18 @@ The first working version targets this flow:
 ```text
 photos/*.jpg
   -> preprocess
-  -> TRELLIS.2 raw GLB/OBJ
-  -> mesh conversion for Instant Meshes, if needed
-  -> Instant Meshes remesh
+  -> TencentARC InstantMesh OBJ
+  -> repair + scale
+  -> printable STL
+```
+
+TRELLIS.2 remains useful as a second generator path:
+
+```text
+photos/*.jpg
+  -> preprocess
+  -> TRELLIS.2 GLB
+  -> Blender GLB-to-OBJ conversion
   -> repair + scale
   -> printable STL
 ```
@@ -58,12 +61,32 @@ Initialize the expected folders:
 photo-to-print init
 ```
 
-Import photos and choose the primary image for the MVP single-image generation step:
+Import photos and choose the primary image:
 
 ```bash
 photo-to-print preprocess \
   --input-dir data/input_photos \
   --output-dir data/processed
+```
+
+Run TencentARC InstantMesh through its local checkout:
+
+```bash
+photo-to-print generate-instantmesh \
+  --input data/processed/01_front.jpg \
+  --output outputs/raw/object.obj \
+  --instantmesh-root /path/to/InstantMesh \
+  --config configs/instant-mesh-large.yaml
+```
+
+Run the default full pipeline with InstantMesh:
+
+```bash
+photo-to-print run \
+  --name object-test-01 \
+  --generation-mode instantmesh \
+  --instantmesh-root /path/to/InstantMesh \
+  --printable-output outputs/printable/object-test-01.stl
 ```
 
 Run TRELLIS.2 through a command template:
@@ -75,8 +98,7 @@ photo-to-print generate \
   --command-template "python scripts/trellis2_image_to_3d.py --input {input} --output {output} --model {model}"
 ```
 
-Convert GLB to OBJ before remeshing, using an external converter such as Blender,
-Assimp, or a trimesh-based script:
+Convert GLB to OBJ before print preparation when using TRELLIS.2:
 
 ```bash
 photo-to-print convert \
@@ -85,31 +107,11 @@ photo-to-print convert \
   --preset blender
 ```
 
-Run Instant Meshes in batch mode:
-
-```bash
-photo-to-print remesh \
-  --input outputs/raw/object.obj \
-  --output outputs/remeshed/object.obj \
-  --instant-meshes-bin /path/to/InstantMeshes \
-  --faces 10000
-```
-
-You can also bind the binary once:
-
-```bash
-export PHOTO_TO_PRINT_INSTANT_MESHES_BIN=/path/to/InstantMeshes
-photo-to-print remesh \
-  --input outputs/raw/object.obj \
-  --output outputs/remeshed/object.obj \
-  --faces 10000
-```
-
 Prepare a printable STL candidate and write a mesh report:
 
 ```bash
 photo-to-print print-prep \
-  --input outputs/remeshed/object.obj \
+  --input outputs/raw/object.obj \
   --output outputs/printable/object.stl \
   --backend auto
 ```
@@ -119,7 +121,7 @@ For stronger print preparation, install the optional mesh backend:
 ```bash
 pip install -e ".[mesh]"
 photo-to-print print-prep \
-  --input outputs/remeshed/object.obj \
+  --input outputs/raw/object.obj \
   --output outputs/printable/object.stl \
   --backend trimesh \
   --target-max-dimension-mm 80 \
@@ -127,15 +129,15 @@ photo-to-print print-prep \
 ```
 
 All external stages support `--dry-run` so commands can be checked before
-running CUDA-heavy or GUI-tool-dependent steps.
+running CUDA-heavy steps.
 
 ## Technical Notes
 
+- TencentARC InstantMesh recommends Python 3.10, PyTorch 2.1.0, and CUDA 12.1.
+- TencentARC InstantMesh uses CUDA in `run.py`, so real generation still needs a CUDA-capable machine.
+- TencentARC InstantMesh writes OBJ meshes by default.
 - TRELLIS.2 is documented as tested on Linux with CUDA and an NVIDIA GPU with at least 24 GB of VRAM.
-- The official TRELLIS.2 example shows image-to-3D generation from a single image.
-- For the first 5-6 photo workflow, the initial strategy is to select the strongest photo as the main input and use the other photos for quality checks, masks, and manual validation.
-- A separate `generate-multiview` adapter is available for plugging in a true multi-view reconstruction model.
-- Instant Meshes can run in batch mode when an output path is provided.
+- The 5-6 photo workflow currently selects the strongest primary image for generation and keeps the other photos for quality checks and future multi-view experiments.
 
 ## Directory Plan
 
@@ -144,8 +146,8 @@ data/
   input_photos/
   processed/
 outputs/
+  instantmesh/
   raw/
-  remeshed/
   printable/
 docs/
   architecture.md

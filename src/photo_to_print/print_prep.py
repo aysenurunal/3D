@@ -35,6 +35,9 @@ def prepare_for_print(
     if not input_mesh.exists() and not dry_run:
         raise FileNotFoundError(f"Input mesh does not exist: {input_mesh}")
 
+    if dry_run and not repair_command_template:
+        return PrintPrepResult(f"Dry run print prep: {input_mesh} -> {output_mesh}", report_path=None)
+
     if repair_command_template:
         output_mesh.parent.mkdir(parents=True, exist_ok=True)
         command = render_command_template(

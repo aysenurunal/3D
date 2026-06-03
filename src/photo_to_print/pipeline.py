@@ -7,7 +7,7 @@ from .convert import convert_mesh
 from .multiview import MultiViewOptions, run_multiview_adapter
 from .preprocess import preprocess_photos
 from .print_prep import prepare_for_print
-from .runners.instant_meshes import InstantMeshesOptions, run_instant_meshes
+from .runners.tencent_instantmesh import TencentInstantMeshOptions, run_tencent_instantmesh
 from .runners.trellis2 import Trellis2Options, run_trellis2
 
 
@@ -21,31 +21,35 @@ def run_pipeline(
     input_dir: Path,
     processed_dir: Path,
     raw_output: Path | None,
-    mesh_for_remesh: Path | None,
-    remeshed_output: Path | None,
+    mesh_for_print: Path | None,
     printable_output: Path | None,
     generation_mode: str,
     trellis_command_template: str | None,
     multiview_command_template: str | None,
+    instantmesh_root: Path | None,
+    instantmesh_config: str,
+    instantmesh_output_dir: Path,
+    instantmesh_python: str,
+    instantmesh_no_rembg: bool,
+    instantmesh_export_texmap: bool,
+    instantmesh_save_video: bool,
     mesh_convert_command_template: str | None,
     mesh_convert_preset: str | None,
-    instant_meshes_bin: Path | None,
-    target_faces: int,
     dry_run: bool = False,
 ) -> PipelineResult:
-    raw_output = raw_output or Path("outputs/raw") / f"{name}.glb"
-    mesh_for_remesh = mesh_for_remesh or _default_remesh_input(raw_output, name)
-    remeshed_output = remeshed_output or Path("outputs/remeshed") / f"{name}.obj"
+    generation_mode = "trellis" if generation_mode == "single" else generation_mode
+    raw_output = raw_output or _default_raw_output(generation_mode, name)
+    mesh_for_print = mesh_for_print or _default_print_input(raw_output, name)
     printable_output = printable_output or Path("outputs/printable") / f"{name}.stl"
 
     if (
-        raw_output.resolve() != mesh_for_remesh.resolve()
-        and raw_output.suffix.lower() != mesh_for_remesh.suffix.lower()
+        raw_output.resolve() != mesh_for_print.resolve()
+        and raw_output.suffix.lower() != mesh_for_print.suffix.lower()
         and not mesh_convert_command_template
         and not mesh_convert_preset
     ):
         raise ValueError(
-            "The full pipeline needs a mesh conversion command before remeshing. "
+            "The full pipeline needs a mesh conversion command before print preparation. "
             "Pass --mesh-convert-command-template, use --mesh-convert-preset, or set --raw-output to an OBJ/PLY path."
         )
 
@@ -54,12 +58,29 @@ def run_pipeline(
     messages.append(f"Imported {len(preprocess_result.photos)} photo(s).")
     messages.append(f"Primary image: {preprocess_result.primary_photo.processed_path}")
 
-    if generation_mode == "single":
+    if generation_mode == "trellis":
         generation = run_trellis2(
             Trellis2Options(
                 input_image=Path(preprocess_result.primary_photo.processed_path),
                 output_asset=raw_output,
                 command_template=trellis_command_template,
+                dry_run=dry_run,
+            )
+        )
+    elif generation_mode == "instantmesh":
+        if instantmesh_root is None:
+            raise ValueError("InstantMesh generation requires --instantmesh-root /path/to/InstantMesh.")
+        generation = run_tencent_instantmesh(
+            TencentInstantMeshOptions(
+                input_image=Path(preprocess_result.primary_photo.processed_path),
+                output_mesh=raw_output,
+                instantmesh_root=instantmesh_root,
+                config=instantmesh_config,
+                output_dir=instantmesh_output_dir,
+                python_bin=instantmesh_python,
+                no_rembg=instantmesh_no_rembg,
+                export_texmap=instantmesh_export_texmap,
+                save_video=instantmesh_save_video,
                 dry_run=dry_run,
             )
         )
@@ -78,29 +99,18 @@ def run_pipeline(
         raise ValueError(f"Unsupported generation mode: {generation_mode}")
     messages.append(generation.message)
 
-    if raw_output.resolve() != mesh_for_remesh.resolve():
+    if raw_output.resolve() != mesh_for_print.resolve():
         conversion = convert_mesh(
             input_mesh=raw_output,
-            output_mesh=mesh_for_remesh,
+            output_mesh=mesh_for_print,
             command_template=mesh_convert_command_template,
             preset=mesh_convert_preset,
             dry_run=dry_run,
         )
         messages.append(conversion.message)
 
-    remesh = run_instant_meshes(
-        InstantMeshesOptions(
-            input_mesh=mesh_for_remesh,
-            output_mesh=remeshed_output,
-            binary=instant_meshes_bin,
-            target_faces=target_faces,
-            dry_run=dry_run,
-        )
-    )
-    messages.append(remesh.message)
-
     print_prep = prepare_for_print(
-        input_mesh=remeshed_output,
+        input_mesh=mesh_for_print,
         output_mesh=printable_output,
         dry_run=dry_run,
     )
@@ -111,7 +121,13 @@ def run_pipeline(
     return PipelineResult(messages=messages)
 
 
-def _default_remesh_input(raw_output: Path, name: str) -> Path:
+def _default_print_input(raw_output: Path, name: str) -> Path:
     if raw_output.suffix.lower() in {".obj", ".ply"}:
         return raw_output
     return Path("outputs/raw") / f"{name}.obj"
+
+
+def _default_raw_output(generation_mode: str, name: str) -> Path:
+    if generation_mode == "instantmesh":
+        return Path("outputs/raw") / f"{name}.obj"
+    return Path("outputs/raw") / f"{name}.glb"

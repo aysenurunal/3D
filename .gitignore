@@ -15,7 +15,7 @@ dist/
 data/input_photos/*
 data/processed/*
 outputs/raw/*
-outputs/remeshed/*
+outputs/instantmesh/*
 outputs/printable/*
 models/
 checkpoints/
@@ -25,5 +25,5 @@ ckpts/
 !data/input_photos/.gitkeep
 !data/processed/.gitkeep
 !outputs/raw/.gitkeep
-!outputs/remeshed/.gitkeep
+!outputs/instantmesh/.gitkeep
 !outputs/printable/.gitkeep

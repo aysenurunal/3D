@@ -1,8 +1,8 @@
 # Usage
 
 This project intentionally wraps external tools instead of vendoring their
-source code. TRELLIS.2, mesh conversion tools, and Instant Meshes can each live
-in their own environment.
+source code. TencentARC InstantMesh, TRELLIS.2, and mesh conversion tools can
+each live in their own environment.
 
 ## Command Overview
 
@@ -10,73 +10,96 @@ in their own environment.
 photo-to-print init
 photo-to-print doctor
 photo-to-print preprocess
+photo-to-print generate-instantmesh
 photo-to-print generate
 photo-to-print generate-multiview
 photo-to-print convert
-photo-to-print remesh
 photo-to-print print-prep
 photo-to-print run
 ```
 
-## Dry Run
-
 ## Environment Check
 
-Run `doctor` before attempting TRELLIS.2 inference:
+Run `doctor` before attempting GPU inference:
 
 ```bash
 photo-to-print doctor \
+  --instantmesh-root /path/to/InstantMesh \
   --trellis-root /path/to/TRELLIS.2 \
-  --instant-meshes-bin /path/to/InstantMeshes \
   --converter-bin blender
 ```
 
-You can also bind the Instant Meshes binary once with an environment variable:
+On a local Mac this command is expected to warn or fail for CUDA checks. Run
+InstantMesh or TRELLIS.2 generation on a Linux machine with an NVIDIA CUDA GPU,
+then bring the generated mesh artifacts back into this project.
+
+## TencentARC InstantMesh
+
+Generate an OBJ mesh from the selected primary image:
 
 ```bash
-export PHOTO_TO_PRINT_INSTANT_MESHES_BIN=/path/to/InstantMeshes
-photo-to-print doctor --converter-bin blender
+photo-to-print generate-instantmesh \
+  --input data/processed/01_front.jpg \
+  --output outputs/raw/object.obj \
+  --instantmesh-root /path/to/InstantMesh \
+  --config configs/instant-mesh-large.yaml
 ```
 
-On a local Mac this command is expected to warn or fail for the TRELLIS.2 CUDA
-runtime checks. Run TRELLIS.2 generation on a Linux machine with an NVIDIA CUDA
-GPU, then bring the generated mesh artifacts back into this project.
+Dry-run the command first:
 
-Use `--dry-run` before running expensive external stages:
+```bash
+photo-to-print generate-instantmesh \
+  --input data/processed/01_front.jpg \
+  --output outputs/raw/object.obj \
+  --instantmesh-root /path/to/InstantMesh \
+  --dry-run
+```
+
+The adapter expects InstantMesh to create:
+
+```text
+outputs/instantmesh/instant-mesh-large/meshes/<input-name>.obj
+```
+
+It then copies that OBJ to the requested `--output` path.
+
+## Full Pipeline
+
+The default full pipeline uses TencentARC InstantMesh:
+
+```bash
+photo-to-print run \
+  --name object-test-01 \
+  --generation-mode instantmesh \
+  --instantmesh-root /path/to/InstantMesh \
+  --printable-output outputs/printable/object-test-01.stl
+```
+
+## TRELLIS.2 Alternative
+
+TRELLIS.2 can still be used as an alternative generator:
 
 ```bash
 photo-to-print generate \
   --input data/processed/01_front.jpg \
   --output outputs/raw/object.glb \
-  --command-template "python scripts/trellis2_image_to_3d.py --input {input} --output {output}" \
-  --dry-run
+  --command-template "python scripts/trellis2_image_to_3d.py --input {input} --output {output} --model {model}"
 ```
 
-```bash
-photo-to-print remesh \
-  --input outputs/raw/object.obj \
-  --output outputs/remeshed/object.obj \
-  --instant-meshes-bin /path/to/InstantMeshes \
-  --dry-run
-```
-
-## Full MVP Run
-
-The full `run` command wires the same stages together. If TRELLIS.2 writes GLB,
-use the Blender conversion preset so the remesh stage receives OBJ or PLY:
+If TRELLIS.2 writes GLB, convert it to OBJ before print preparation:
 
 ```bash
-photo-to-print run \
-  --name object-test-01 \
-  --trellis-command-template "python scripts/trellis2_image_to_3d.py --input {input} --output {output} --model {model}" \
-  --mesh-convert-preset blender \
-  --instant-meshes-bin /path/to/InstantMeshes
+photo-to-print convert \
+  --input outputs/raw/object.glb \
+  --output outputs/raw/object.obj \
+  --preset blender
 ```
 
 ## Multi-View Adapter
 
-TRELLIS.2 is wired as the single-image generation path. For true multi-view
-generation, plug in an external reconstruction model with `generate-multiview`:
+The current default workflow selects one primary image for InstantMesh. For a
+true multi-view reconstruction model, plug in an external command with
+`generate-multiview`:
 
 ```bash
 photo-to-print generate-multiview \
@@ -85,16 +108,7 @@ photo-to-print generate-multiview \
   --command-template "your-multiview-tool --images {images} --output {output}"
 ```
 
-The full pipeline can use the same adapter:
-
-```bash
-photo-to-print run \
-  --name object-test-01 \
-  --generation-mode multiview \
-  --multiview-command-template "your-multiview-tool --input-dir {input_dir} --output {output}" \
-  --mesh-convert-preset blender \
-  --instant-meshes-bin /path/to/InstantMeshes
-```
+## Print Preparation
 
 For now, built-in print preparation supports OBJ input and can export ASCII STL.
 Install the optional mesh tools for stronger repair and validation:
@@ -108,7 +122,7 @@ watertight checks, and scale control:
 
 ```bash
 photo-to-print print-prep \
-  --input outputs/remeshed/object.obj \
+  --input outputs/raw/object.obj \
   --output outputs/printable/object.stl \
   --backend trimesh \
   --target-max-dimension-mm 80 \

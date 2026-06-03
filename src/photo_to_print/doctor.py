@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import platform
 import shutil
 import subprocess
@@ -28,7 +27,7 @@ class DoctorReport:
 
 def run_doctor(
     trellis_root: Path | None = None,
-    instant_meshes_bin: Path | None = None,
+    instantmesh_root: Path | None = None,
     converter_bin: str | None = None,
 ) -> DoctorReport:
     checks = [
@@ -37,10 +36,10 @@ def run_doctor(
         _check_nvidia_smi(),
         _check_conda(),
         _check_trellis_root(trellis_root),
+        _check_tencent_instantmesh_root(instantmesh_root),
         _check_python_import("PIL", "Pillow"),
         _check_python_import("trellis2", "TRELLIS.2 Python package"),
         _check_python_import("o_voxel", "o-voxel package"),
-        _check_instant_meshes(instant_meshes_bin),
         _check_converter(converter_bin),
     ]
     return DoctorReport(checks=checks)
@@ -65,7 +64,7 @@ def _check_platform() -> DoctorCheck:
     return DoctorCheck(
         "platform",
         "warn",
-        f"{system} {machine}. TRELLIS.2 inference should run on Linux with CUDA.",
+        f"{system} {machine}. Real InstantMesh/TRELLIS.2 generation should run on Linux with CUDA.",
     )
 
 
@@ -79,7 +78,7 @@ def _check_python() -> DoctorCheck:
 def _check_nvidia_smi() -> DoctorCheck:
     nvidia_smi = shutil.which("nvidia-smi")
     if not nvidia_smi:
-        return DoctorCheck("nvidia-smi", "fail", "Not found. TRELLIS.2 needs an NVIDIA CUDA GPU.")
+        return DoctorCheck("nvidia-smi", "fail", "Not found. TencentARC InstantMesh and TRELLIS.2 need an NVIDIA CUDA GPU.")
 
     result = subprocess.run([nvidia_smi, "--query-gpu=name,memory.total", "--format=csv,noheader"], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
     if result.returncode != 0:
@@ -106,6 +105,24 @@ def _check_trellis_root(trellis_root: Path | None) -> DoctorCheck:
     return DoctorCheck("trellis-root", "pass", str(trellis_root))
 
 
+def _check_tencent_instantmesh_root(instantmesh_root: Path | None) -> DoctorCheck:
+    if not instantmesh_root:
+        return DoctorCheck("tencent-instantmesh-root", "warn", "Not provided. Pass --instantmesh-root /path/to/InstantMesh.")
+
+    instantmesh_root = instantmesh_root.resolve()
+    if not instantmesh_root.exists():
+        return DoctorCheck("tencent-instantmesh-root", "fail", f"Directory does not exist: {instantmesh_root}")
+    if not (instantmesh_root / "run.py").exists():
+        return DoctorCheck("tencent-instantmesh-root", "fail", f"run.py was not found under {instantmesh_root}")
+    if not (instantmesh_root / "configs" / "instant-mesh-large.yaml").exists():
+        return DoctorCheck(
+            "tencent-instantmesh-root",
+            "warn",
+            f"configs/instant-mesh-large.yaml was not found under {instantmesh_root}",
+        )
+    return DoctorCheck("tencent-instantmesh-root", "pass", str(instantmesh_root))
+
+
 def _check_python_import(module_name: str, label: str) -> DoctorCheck:
     result = subprocess.run(
         [sys.executable, "-c", f"import {module_name}; print('ok')"],
@@ -117,25 +134,6 @@ def _check_python_import(module_name: str, label: str) -> DoctorCheck:
     if result.returncode == 0:
         return DoctorCheck(label, "pass", "Import succeeded.")
     return DoctorCheck(label, "warn", "Import failed in the current Python environment.")
-
-
-def _check_instant_meshes(instant_meshes_bin: Path | None) -> DoctorCheck:
-    if instant_meshes_bin is None:
-        env_value = os.environ.get("PHOTO_TO_PRINT_INSTANT_MESHES_BIN")
-        if env_value:
-            instant_meshes_bin = Path(env_value)
-
-    if instant_meshes_bin:
-        path = instant_meshes_bin.resolve()
-        if path.exists():
-            return DoctorCheck("instant-meshes", "pass", str(path))
-        return DoctorCheck("instant-meshes", "fail", f"Binary does not exist: {path}")
-
-    for candidate in ("InstantMeshes", "instant-meshes", "Instant Meshes"):
-        found = shutil.which(candidate)
-        if found:
-            return DoctorCheck("instant-meshes", "pass", found)
-    return DoctorCheck("instant-meshes", "warn", "Not found on PATH. Pass --instant-meshes-bin.")
 
 
 def _check_converter(converter_bin: str | None) -> DoctorCheck:

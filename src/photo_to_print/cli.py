@@ -11,7 +11,7 @@ from .convert import convert_mesh
 from .doctor import doctor_report_to_json, format_doctor_report, run_doctor
 from .multiview import MultiViewOptions, run_multiview_adapter
 from .print_prep import prepare_for_print
-from .runners.instant_meshes import InstantMeshesOptions, run_instant_meshes
+from .runners.tencent_instantmesh import TencentInstantMeshOptions, run_tencent_instantmesh
 from .runners.trellis2 import Trellis2Options, run_trellis2
 
 
@@ -27,7 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     doctor_parser = subparsers.add_parser("doctor", help="Check local external tool readiness.")
     doctor_parser.add_argument("--trellis-root", type=Path, help="Path to a TRELLIS.2 checkout.")
-    doctor_parser.add_argument("--instant-meshes-bin", type=Path, help="Path to the Instant Meshes binary.")
+    doctor_parser.add_argument("--instantmesh-root", type=Path, help="Path to a TencentARC/InstantMesh checkout.")
     doctor_parser.add_argument("--converter-bin", help="Converter executable to check, for example blender or assimp.")
     doctor_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
 
@@ -52,6 +52,18 @@ def build_parser() -> argparse.ArgumentParser:
     generate_parser.add_argument("--model", default="microsoft/TRELLIS.2-4B")
     generate_parser.add_argument("--dry-run", action="store_true", help="Print the command without running it.")
 
+    instantmesh_parser = subparsers.add_parser("generate-instantmesh", help="Run the TencentARC InstantMesh adapter.")
+    instantmesh_parser.add_argument("--input", type=Path, required=True, help="Primary input image.")
+    instantmesh_parser.add_argument("--output", type=Path, required=True, help="Generated OBJ mesh path.")
+    instantmesh_parser.add_argument("--instantmesh-root", type=Path, required=True, help="Path to TencentARC/InstantMesh.")
+    instantmesh_parser.add_argument("--config", default="configs/instant-mesh-large.yaml")
+    instantmesh_parser.add_argument("--output-dir", type=Path, default=Path("outputs/instantmesh"))
+    instantmesh_parser.add_argument("--python-bin", default="python")
+    instantmesh_parser.add_argument("--no-rembg", action="store_true")
+    instantmesh_parser.add_argument("--export-texmap", action="store_true")
+    instantmesh_parser.add_argument("--save-video", action="store_true")
+    instantmesh_parser.add_argument("--dry-run", action="store_true", help="Print the command without running it.")
+
     multiview_parser = subparsers.add_parser("generate-multiview", help="Run a pluggable multi-view generation adapter.")
     multiview_parser.add_argument("--input-dir", type=Path, default=Path("data/processed"))
     multiview_parser.add_argument("--output", type=Path, required=True, help="Generated asset path.")
@@ -64,7 +76,7 @@ def build_parser() -> argparse.ArgumentParser:
     multiview_parser.add_argument("--max-images", type=int, default=8)
     multiview_parser.add_argument("--dry-run", action="store_true", help="Print the command without running it.")
 
-    convert_parser = subparsers.add_parser("convert", help="Convert mesh formats between generation and remeshing.")
+    convert_parser = subparsers.add_parser("convert", help="Convert mesh formats between generation and print preparation.")
     convert_parser.add_argument("--input", type=Path, required=True, help="Input mesh path.")
     convert_parser.add_argument("--output", type=Path, required=True, help="Converted output mesh path.")
     convert_parser.add_argument(
@@ -73,16 +85,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     convert_parser.add_argument("--preset", choices=("blender", "assimp"), help="Use a known converter command preset.")
     convert_parser.add_argument("--dry-run", action="store_true", help="Print the command without running it.")
-
-    remesh_parser = subparsers.add_parser("remesh", help="Run the Instant Meshes remesh adapter.")
-    remesh_parser.add_argument("--input", type=Path, required=True, help="Input OBJ/PLY mesh.")
-    remesh_parser.add_argument("--output", type=Path, required=True, help="Remeshed output OBJ/PLY path.")
-    remesh_parser.add_argument("--instant-meshes-bin", type=Path, help="Path to the Instant Meshes binary.")
-    remesh_parser.add_argument("--faces", type=int, default=10000, help="Target face count.")
-    remesh_parser.add_argument("--rosy", type=int, default=4, choices=(2, 4, 6))
-    remesh_parser.add_argument("--posy", type=int, default=4, choices=(3, 4))
-    remesh_parser.add_argument("--crease", type=float, default=30.0, help="Crease angle in degrees.")
-    remesh_parser.add_argument("--dry-run", action="store_true", help="Print the command without running it.")
 
     print_parser = subparsers.add_parser("print-prep", help="Prepare a mesh for 3D printing.")
     print_parser.add_argument("--input", type=Path, required=True, help="Input mesh path.")
@@ -103,17 +105,21 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--name", required=True, help="Asset run name, for example 'mug-test-01'.")
     run_parser.add_argument("--input-dir", type=Path, default=Path("data/input_photos"))
     run_parser.add_argument("--processed-dir", type=Path, default=Path("data/processed"))
-    run_parser.add_argument("--raw-output", type=Path, help="Raw asset path. Defaults to outputs/raw/<name>.glb.")
-    run_parser.add_argument("--mesh-for-remesh", type=Path, help="OBJ/PLY mesh passed into Instant Meshes.")
-    run_parser.add_argument("--remeshed-output", type=Path, help="Remeshed path. Defaults to outputs/remeshed/<name>.obj.")
+    run_parser.add_argument("--raw-output", type=Path, help="Raw generated asset path.")
+    run_parser.add_argument("--mesh-for-print", type=Path, help="OBJ/STL mesh passed into print preparation.")
     run_parser.add_argument("--printable-output", type=Path, help="Printable path. Defaults to outputs/printable/<name>.stl.")
     run_parser.add_argument("--trellis-command-template", help="TRELLIS.2 command template.")
-    run_parser.add_argument("--generation-mode", choices=("single", "multiview"), default="single")
+    run_parser.add_argument("--generation-mode", choices=("trellis", "instantmesh", "multiview", "single"), default="instantmesh")
     run_parser.add_argument("--multiview-command-template", help="External multi-view generation command template.")
+    run_parser.add_argument("--instantmesh-root", type=Path, help="Path to TencentARC/InstantMesh.")
+    run_parser.add_argument("--instantmesh-config", default="configs/instant-mesh-large.yaml")
+    run_parser.add_argument("--instantmesh-output-dir", type=Path, default=Path("outputs/instantmesh"))
+    run_parser.add_argument("--instantmesh-python", default="python")
+    run_parser.add_argument("--instantmesh-no-rembg", action="store_true")
+    run_parser.add_argument("--instantmesh-export-texmap", action="store_true")
+    run_parser.add_argument("--instantmesh-save-video", action="store_true")
     run_parser.add_argument("--mesh-convert-command-template", help="Command template for GLB-to-OBJ/PLY conversion.")
     run_parser.add_argument("--mesh-convert-preset", choices=("blender", "assimp"), help="Known converter preset.")
-    run_parser.add_argument("--instant-meshes-bin", type=Path, help="Path to the Instant Meshes binary.")
-    run_parser.add_argument("--faces", type=int, default=10000, help="Target remesh face count.")
     run_parser.add_argument("--dry-run", action="store_true", help="Print external commands without running them.")
 
     return parser
@@ -133,7 +139,7 @@ def main(argv: list[str] | None = None) -> None:
         if args.command == "doctor":
             report = run_doctor(
                 trellis_root=args.trellis_root,
-                instant_meshes_bin=args.instant_meshes_bin,
+                instantmesh_root=args.instantmesh_root,
                 converter_bin=args.converter_bin,
             )
             if args.json:
@@ -169,6 +175,24 @@ def main(argv: list[str] | None = None) -> None:
             print(result.message)
             return
 
+        if args.command == "generate-instantmesh":
+            result = run_tencent_instantmesh(
+                TencentInstantMeshOptions(
+                    input_image=args.input,
+                    output_mesh=args.output,
+                    instantmesh_root=args.instantmesh_root,
+                    config=args.config,
+                    output_dir=args.output_dir,
+                    python_bin=args.python_bin,
+                    no_rembg=args.no_rembg,
+                    export_texmap=args.export_texmap,
+                    save_video=args.save_video,
+                    dry_run=args.dry_run,
+                )
+            )
+            print(result.message)
+            return
+
         if args.command == "generate-multiview":
             result = run_multiview_adapter(
                 MultiViewOptions(
@@ -190,22 +214,6 @@ def main(argv: list[str] | None = None) -> None:
                 command_template=args.command_template,
                 preset=args.preset,
                 dry_run=args.dry_run,
-            )
-            print(result.message)
-            return
-
-        if args.command == "remesh":
-            result = run_instant_meshes(
-                InstantMeshesOptions(
-                    input_mesh=args.input,
-                    output_mesh=args.output,
-                    binary=args.instant_meshes_bin,
-                    target_faces=args.faces,
-                    rosy=args.rosy,
-                    posy=args.posy,
-                    crease=args.crease,
-                    dry_run=args.dry_run,
-                )
             )
             print(result.message)
             return
@@ -234,16 +242,20 @@ def main(argv: list[str] | None = None) -> None:
                 input_dir=args.input_dir,
                 processed_dir=args.processed_dir,
                 raw_output=args.raw_output,
-                mesh_for_remesh=args.mesh_for_remesh,
-                remeshed_output=args.remeshed_output,
+                mesh_for_print=args.mesh_for_print,
                 printable_output=args.printable_output,
                 generation_mode=args.generation_mode,
                 trellis_command_template=args.trellis_command_template,
                 multiview_command_template=args.multiview_command_template,
+                instantmesh_root=args.instantmesh_root,
+                instantmesh_config=args.instantmesh_config,
+                instantmesh_output_dir=args.instantmesh_output_dir,
+                instantmesh_python=args.instantmesh_python,
+                instantmesh_no_rembg=args.instantmesh_no_rembg,
+                instantmesh_export_texmap=args.instantmesh_export_texmap,
+                instantmesh_save_video=args.instantmesh_save_video,
                 mesh_convert_command_template=args.mesh_convert_command_template,
                 mesh_convert_preset=args.mesh_convert_preset,
-                instant_meshes_bin=args.instant_meshes_bin,
-                target_faces=args.faces,
                 dry_run=args.dry_run,
             )
             for message in result.messages:

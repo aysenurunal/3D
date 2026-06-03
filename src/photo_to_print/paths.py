@@ -9,8 +9,8 @@ class ProjectPaths:
     root: Path
     input_photos: Path
     processed: Path
+    instantmesh_outputs: Path
     raw_outputs: Path
-    remeshed_outputs: Path
     printable_outputs: Path
 
     @classmethod
@@ -20,8 +20,8 @@ class ProjectPaths:
             root=root,
             input_photos=root / "data" / "input_photos",
             processed=root / "data" / "processed",
+            instantmesh_outputs=root / "outputs" / "instantmesh",
             raw_outputs=root / "outputs" / "raw",
-            remeshed_outputs=root / "outputs" / "remeshed",
             printable_outputs=root / "outputs" / "printable",
         )
 
@@ -30,8 +30,8 @@ def ensure_project_dirs(paths: ProjectPaths) -> None:
     for directory in (
         paths.input_photos,
         paths.processed,
+        paths.instantmesh_outputs,
         paths.raw_outputs,
-        paths.remeshed_outputs,
         paths.printable_outputs,
     ):
         directory.mkdir(parents=True, exist_ok=True)
