@@ -27,3 +27,7 @@ ckpts/
 !outputs/raw/.gitkeep
 !outputs/instantmesh/.gitkeep
 !outputs/printable/.gitkeep
+
+
+.idea/
+*.iml
