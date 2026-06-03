@@ -1,0 +1,14 @@
+{
+  "trellis_command_template": "python scripts/trellis2_image_to_3d.py --input {input} --output {output} --model {model}",
+  "multiview_command_template": "your-multiview-tool --images {images} --output {output}",
+  "mesh_convert_preset": "blender",
+  "mesh_convert_command_template": "blender --background --python scripts/blender_convert_mesh.py -- --input {input} --output {output}",
+  "instant_meshes_bin": "/path/to/InstantMeshes",
+  "instant_meshes_env": "PHOTO_TO_PRINT_INSTANT_MESHES_BIN",
+  "target_faces": 10000,
+  "notes": [
+    "Run the TRELLIS.2 command inside an environment where TRELLIS.2 and its CUDA dependencies are installed.",
+    "Use the conversion command when TRELLIS.2 exports GLB and Instant Meshes needs OBJ or PLY.",
+    "Instant Meshes can run in batch mode when --output is provided."
+  ]
+}

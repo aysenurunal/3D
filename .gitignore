@@ -1,0 +1,29 @@
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# Large local assets
+data/input_photos/*
+data/processed/*
+outputs/raw/*
+outputs/remeshed/*
+outputs/printable/*
+models/
+checkpoints/
+ckpts/
+
+# Keep directory placeholders
+!data/input_photos/.gitkeep
+!data/processed/.gitkeep
+!outputs/raw/.gitkeep
+!outputs/remeshed/.gitkeep
+!outputs/printable/.gitkeep
