@@ -1,8 +1,8 @@
 # Usage
 
 This project intentionally wraps external tools instead of vendoring their
-source code. TencentARC InstantMesh, TRELLIS.2, and mesh conversion tools can
-each live in their own environment.
+source code. TRELLIS.2 is the primary generation backend; optional fallback
+backends and mesh conversion tools can each live in their own environment.
 
 ## Command Overview
 
@@ -10,8 +10,8 @@ each live in their own environment.
 photo-to-print init
 photo-to-print doctor
 photo-to-print preprocess
-photo-to-print generate-instantmesh
 photo-to-print generate
+photo-to-print generate-instantmesh
 photo-to-print generate-multiview
 photo-to-print convert
 photo-to-print print-prep
@@ -24,67 +24,67 @@ Run `doctor` before attempting GPU inference:
 
 ```bash
 photo-to-print doctor \
-  --instantmesh-root /path/to/InstantMesh \
   --trellis-root /path/to/TRELLIS.2 \
   --converter-bin blender
 ```
 
 On a local Mac this command is expected to warn or fail for CUDA checks. Run
-InstantMesh or TRELLIS.2 generation on a Linux machine with an NVIDIA CUDA GPU,
-then bring the generated mesh artifacts back into this project.
+TRELLIS.2 generation on a Linux machine with an NVIDIA CUDA GPU and enough
+VRAM, then bring the generated mesh artifacts back into this project.
 
-## TencentARC InstantMesh
+## TRELLIS.2 Generation
 
-Generate an OBJ mesh from the selected primary image:
+Generate a GLB mesh from the selected primary image:
 
 ```bash
-photo-to-print generate-instantmesh \
+photo-to-print generate \
   --input data/processed/01_front.jpg \
-  --output outputs/raw/object.obj \
-  --instantmesh-root /path/to/InstantMesh \
-  --config configs/instant-mesh-large.yaml
+  --output outputs/raw/object.glb
 ```
 
 Dry-run the command first:
 
 ```bash
-photo-to-print generate-instantmesh \
+photo-to-print generate \
   --input data/processed/01_front.jpg \
-  --output outputs/raw/object.obj \
-  --instantmesh-root /path/to/InstantMesh \
+  --output outputs/raw/object.glb \
   --dry-run
 ```
 
-The adapter expects InstantMesh to create:
-
-```text
-outputs/instantmesh/instant-mesh-large/meshes/<input-name>.obj
-```
-
-It then copies that OBJ to the requested `--output` path.
+By default, the adapter runs `scripts/trellis2_image_to_3d.py`. Use
+`--command-template` only when the TRELLIS.2 environment needs a different
+launch command.
 
 ## Full Pipeline
 
-The default full pipeline uses TencentARC InstantMesh:
+The default full pipeline uses TRELLIS.2:
 
 ```bash
 photo-to-print run \
   --name object-test-01 \
-  --generation-mode instantmesh \
-  --instantmesh-root /path/to/InstantMesh \
+  --generation-mode trellis2 \
+  --mesh-convert-preset blender \
   --printable-output outputs/printable/object-test-01.stl
 ```
 
-## TRELLIS.2 Alternative
+## Local/GPU Split
 
-TRELLIS.2 can still be used as an alternative generator:
+On a Mac or other non-CUDA laptop, use the project for local preparation:
 
 ```bash
+photo-to-print preprocess \
+  --input-dir data/input_photos \
+  --output-dir data/processed
+
 photo-to-print generate \
   --input data/processed/01_front.jpg \
   --output outputs/raw/object.glb \
-  --command-template "python scripts/trellis2_image_to_3d.py --input {input} --output {output} --model {model}"
+  --dry-run
 ```
+
+Run the real TRELLIS.2 generation on the GPU machine, then continue conversion
+and print preparation either on the GPU machine or locally after copying the
+generated mesh back.
 
 If TRELLIS.2 writes GLB, convert it to OBJ before print preparation:
 
@@ -95,9 +95,22 @@ photo-to-print convert \
   --preset blender
 ```
 
+## Optional InstantMesh Fallback
+
+InstantMesh is not the required backend for this project, but the adapter is
+kept for comparison experiments:
+
+```bash
+photo-to-print generate-instantmesh \
+  --input data/processed/01_front.jpg \
+  --output outputs/raw/object.obj \
+  --instantmesh-root /path/to/InstantMesh \
+  --config configs/instant-mesh-large.yaml
+```
+
 ## Multi-View Adapter
 
-The current default workflow selects one primary image for InstantMesh. For a
+The current default workflow selects one primary image for TRELLIS.2. For a
 true multi-view reconstruction model, plug in an external command with
 `generate-multiview`:
 

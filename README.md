@@ -11,15 +11,15 @@ printable STL/3MF file.
 
 ## Primary References
 
-- [TencentARC/InstantMesh](https://github.com/TencentARC/InstantMesh): Primary image-to-3D mesh generation backend. It generates 3D meshes from a single image using sparse-view reconstruction.
-- [microsoft/TRELLIS.2](https://github.com/microsoft/TRELLIS.2): Optional alternative image-to-3D generation backend.
+- [microsoft/TRELLIS.2](https://github.com/microsoft/TRELLIS.2): Primary image-to-3D generation backend for this project.
+- [TencentARC/InstantMesh](https://github.com/TencentARC/InstantMesh): Optional fallback backend for experiments.
 
 ## Initial Architecture
 
 1. `input`: Capture 5-6 photos of the object.
 2. `preprocess`: Normalize names, copy photos, and select the strongest primary image.
-3. `generate`: Use TencentARC InstantMesh by default, or TRELLIS.2 as an optional backend.
-4. `convert`: Convert GLB to OBJ/PLY only when the chosen backend needs it.
+3. `generate`: Use TRELLIS.2 as the primary image-to-3D backend.
+4. `convert`: Convert TRELLIS.2 GLB output to OBJ/STL when print preparation needs it.
 5. `print-prep`: Check manifoldness, fix normals, scale the model, and export STL/3MF.
 
 ## MVP
@@ -29,18 +29,18 @@ The first working version targets this flow:
 ```text
 photos/*.jpg
   -> preprocess
-  -> TencentARC InstantMesh OBJ
+  -> TRELLIS.2 GLB
+  -> Blender GLB-to-OBJ conversion, if needed
   -> repair + scale
   -> printable STL
 ```
 
-TRELLIS.2 remains useful as a second generator path:
+InstantMesh remains available as an optional fallback path:
 
 ```text
 photos/*.jpg
   -> preprocess
-  -> TRELLIS.2 GLB
-  -> Blender GLB-to-OBJ conversion
+  -> TencentARC InstantMesh OBJ
   -> repair + scale
   -> printable STL
 ```
@@ -69,27 +69,26 @@ photo-to-print preprocess \
   --output-dir data/processed
 ```
 
-Run TencentARC InstantMesh through its local checkout:
+Run TRELLIS.2 through the bundled command adapter:
 
 ```bash
-photo-to-print generate-instantmesh \
+photo-to-print generate \
   --input data/processed/01_front.jpg \
-  --output outputs/raw/object.obj \
-  --instantmesh-root /path/to/InstantMesh \
-  --config configs/instant-mesh-large.yaml
+  --output outputs/raw/object.glb
 ```
 
-Run the default full pipeline with InstantMesh:
+Run the default full pipeline with TRELLIS.2:
 
 ```bash
 photo-to-print run \
   --name object-test-01 \
-  --generation-mode instantmesh \
-  --instantmesh-root /path/to/InstantMesh \
+  --generation-mode trellis2 \
+  --mesh-convert-preset blender \
   --printable-output outputs/printable/object-test-01.stl
 ```
 
-Run TRELLIS.2 through a command template:
+Use a custom TRELLIS.2 command template when the TRELLIS.2 environment needs a
+different launch command:
 
 ```bash
 photo-to-print generate \
@@ -105,6 +104,16 @@ photo-to-print convert \
   --input outputs/raw/object.glb \
   --output outputs/raw/object.obj \
   --preset blender
+```
+
+Run TencentARC InstantMesh only as an optional fallback:
+
+```bash
+photo-to-print generate-instantmesh \
+  --input data/processed/01_front.jpg \
+  --output outputs/raw/object.obj \
+  --instantmesh-root /path/to/InstantMesh \
+  --config configs/instant-mesh-large.yaml
 ```
 
 Prepare a printable STL candidate and write a mesh report:
@@ -131,12 +140,18 @@ photo-to-print print-prep \
 All external stages support `--dry-run` so commands can be checked before
 running CUDA-heavy steps.
 
+## Local/GPU Workflow
+
+Use a local Mac or laptop for photo organization, dry-run command checks, and
+print preparation for existing meshes. Run real TRELLIS.2 image-to-3D inference
+on a Linux CUDA machine. See [docs/trellis2-gpu-workflow.md](docs/trellis2-gpu-workflow.md)
+for the step-by-step split workflow.
+
 ## Technical Notes
 
-- TencentARC InstantMesh recommends Python 3.10, PyTorch 2.1.0, and CUDA 12.1.
-- TencentARC InstantMesh uses CUDA in `run.py`, so real generation still needs a CUDA-capable machine.
-- TencentARC InstantMesh writes OBJ meshes by default.
-- TRELLIS.2 is documented as tested on Linux with CUDA and an NVIDIA GPU with at least 24 GB of VRAM.
+- TRELLIS.2 generation is expected to run on Linux with CUDA and an NVIDIA GPU with at least 24 GB of VRAM.
+- Local Mac development can still run preprocessing, dry-run command planning, mesh conversion scripts, and print preparation for existing meshes.
+- TencentARC InstantMesh remains optional and also needs a CUDA-capable machine for real generation.
 - The 5-6 photo workflow currently selects the strongest primary image for generation and keeps the other photos for quality checks and future multi-view experiments.
 
 ## Directory Plan
@@ -152,6 +167,7 @@ outputs/
 docs/
   architecture.md
   capture-guide.md
+  trellis2-gpu-workflow.md
   usage.md
 ```
 

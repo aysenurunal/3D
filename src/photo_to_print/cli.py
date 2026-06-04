@@ -12,7 +12,7 @@ from .doctor import doctor_report_to_json, format_doctor_report, run_doctor
 from .multiview import MultiViewOptions, run_multiview_adapter
 from .print_prep import prepare_for_print
 from .runners.tencent_instantmesh import TencentInstantMeshOptions, run_tencent_instantmesh
-from .runners.trellis2 import Trellis2Options, run_trellis2
+from .runners.trellis2 import DEFAULT_TRELLIS2_COMMAND_TEMPLATE, Trellis2Options, run_trellis2
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -47,7 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
     generate_parser.add_argument("--output", type=Path, required=True, help="Raw generated asset path.")
     generate_parser.add_argument(
         "--command-template",
-        help="Command template used to run TRELLIS.2. Supports {input} and {output}.",
+        help="Command template used to run TRELLIS.2. Supports {input}, {output}, and {model}.",
     )
     generate_parser.add_argument("--model", default="microsoft/TRELLIS.2-4B")
     generate_parser.add_argument("--dry-run", action="store_true", help="Print the command without running it.")
@@ -101,15 +101,23 @@ def build_parser() -> argparse.ArgumentParser:
     )
     print_parser.add_argument("--dry-run", action="store_true", help="Print external repair command without running it.")
 
-    run_parser = subparsers.add_parser("run", help="Run the MVP pipeline end to end.")
+    run_parser = subparsers.add_parser("run", help="Run the TRELLIS.2-first pipeline end to end.")
     run_parser.add_argument("--name", required=True, help="Asset run name, for example 'mug-test-01'.")
     run_parser.add_argument("--input-dir", type=Path, default=Path("data/input_photos"))
     run_parser.add_argument("--processed-dir", type=Path, default=Path("data/processed"))
     run_parser.add_argument("--raw-output", type=Path, help="Raw generated asset path.")
     run_parser.add_argument("--mesh-for-print", type=Path, help="OBJ/STL mesh passed into print preparation.")
     run_parser.add_argument("--printable-output", type=Path, help="Printable path. Defaults to outputs/printable/<name>.stl.")
-    run_parser.add_argument("--trellis-command-template", help="TRELLIS.2 command template.")
-    run_parser.add_argument("--generation-mode", choices=("trellis", "instantmesh", "multiview", "single"), default="instantmesh")
+    run_parser.add_argument(
+        "--trellis-command-template",
+        default=DEFAULT_TRELLIS2_COMMAND_TEMPLATE,
+        help="TRELLIS.2 command template. Supports {input}, {output}, and {model}.",
+    )
+    run_parser.add_argument(
+        "--generation-mode",
+        choices=("trellis2", "trellis", "instantmesh", "multiview", "single"),
+        default="trellis2",
+    )
     run_parser.add_argument("--multiview-command-template", help="External multi-view generation command template.")
     run_parser.add_argument("--instantmesh-root", type=Path, help="Path to TencentARC/InstantMesh.")
     run_parser.add_argument("--instantmesh-config", default="configs/instant-mesh-large.yaml")

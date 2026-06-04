@@ -35,14 +35,6 @@ Responsibilities:
 - Check image quality, sharpness, and viewpoint coverage.
 - Select the strongest primary image for the current single-image generators.
 
-### TencentARC InstantMesh Adapter
-
-Responsibilities:
-
-- Run `TencentARC/InstantMesh` from a local checkout.
-- Use `run.py` with a config such as `configs/instant-mesh-large.yaml`.
-- Copy the generated OBJ from `outputs/instantmesh/<config>/meshes/` into `outputs/raw/`.
-
 ### TRELLIS.2 Adapter
 
 Responsibilities:
@@ -50,6 +42,14 @@ Responsibilities:
 - Run image-to-3D inference inside a TRELLIS.2 environment.
 - Write raw GLB output to `outputs/raw/`.
 - Record the model settings and source image used for generation.
+
+### Optional InstantMesh Adapter
+
+Responsibilities:
+
+- Run `TencentARC/InstantMesh` from a local checkout for fallback experiments.
+- Use `run.py` with a config such as `configs/instant-mesh-large.yaml`.
+- Copy the generated OBJ from `outputs/instantmesh/<config>/meshes/` into `outputs/raw/`.
 
 ### Mesh Conversion
 
@@ -80,8 +80,8 @@ src/
     convert.py
     print_prep.py
     runners/
-      tencent_instantmesh.py
       trellis2.py
+      tencent_instantmesh.py
 ```
 
 This keeps the local pipeline stable even when external repositories change

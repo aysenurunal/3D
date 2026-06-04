@@ -37,7 +37,7 @@ def run_pipeline(
     mesh_convert_preset: str | None,
     dry_run: bool = False,
 ) -> PipelineResult:
-    generation_mode = "trellis" if generation_mode == "single" else generation_mode
+    generation_mode = _normalize_generation_mode(generation_mode)
     raw_output = raw_output or _default_raw_output(generation_mode, name)
     mesh_for_print = mesh_for_print or _default_print_input(raw_output, name)
     printable_output = printable_output or Path("outputs/printable") / f"{name}.stl"
@@ -58,7 +58,7 @@ def run_pipeline(
     messages.append(f"Imported {len(preprocess_result.photos)} photo(s).")
     messages.append(f"Primary image: {preprocess_result.primary_photo.processed_path}")
 
-    if generation_mode == "trellis":
+    if generation_mode == "trellis2":
         generation = run_trellis2(
             Trellis2Options(
                 input_image=Path(preprocess_result.primary_photo.processed_path),
@@ -131,3 +131,9 @@ def _default_raw_output(generation_mode: str, name: str) -> Path:
     if generation_mode == "instantmesh":
         return Path("outputs/raw") / f"{name}.obj"
     return Path("outputs/raw") / f"{name}.glb"
+
+
+def _normalize_generation_mode(generation_mode: str) -> str:
+    if generation_mode in {"single", "trellis"}:
+        return "trellis2"
+    return generation_mode

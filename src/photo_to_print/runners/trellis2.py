@@ -6,6 +6,11 @@ from pathlib import Path
 from ..command import format_command, render_command_template, run_command
 
 
+DEFAULT_TRELLIS2_COMMAND_TEMPLATE = (
+    "python scripts/trellis2_image_to_3d.py --input {input} --output {output} --model {model}"
+)
+
+
 @dataclass(frozen=True)
 class Trellis2Options:
     input_image: Path
@@ -23,18 +28,14 @@ class RunnerResult:
 def run_trellis2(options: Trellis2Options) -> RunnerResult:
     input_image = options.input_image.resolve()
     output_asset = options.output_asset.resolve()
+    command_template = options.command_template or DEFAULT_TRELLIS2_COMMAND_TEMPLATE
 
     if not input_image.exists() and not options.dry_run:
         raise FileNotFoundError(f"Input image does not exist: {input_image}")
-    if not options.command_template:
-        raise ValueError(
-            "Missing TRELLIS.2 command template. Example: "
-            "'python scripts/trellis2_image_to_3d.py --input {input} --output {output}'"
-        )
 
     output_asset.parent.mkdir(parents=True, exist_ok=True)
     command = render_command_template(
-        options.command_template,
+        command_template,
         input=input_image,
         output=output_asset,
         model=options.model,

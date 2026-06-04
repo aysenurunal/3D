@@ -64,7 +64,7 @@ def _check_platform() -> DoctorCheck:
     return DoctorCheck(
         "platform",
         "warn",
-        f"{system} {machine}. Real InstantMesh/TRELLIS.2 generation should run on Linux with CUDA.",
+        f"{system} {machine}. Real TRELLIS.2 generation should run on Linux with CUDA.",
     )
 
 
@@ -78,7 +78,11 @@ def _check_python() -> DoctorCheck:
 def _check_nvidia_smi() -> DoctorCheck:
     nvidia_smi = shutil.which("nvidia-smi")
     if not nvidia_smi:
-        return DoctorCheck("nvidia-smi", "fail", "Not found. TencentARC InstantMesh and TRELLIS.2 need an NVIDIA CUDA GPU.")
+        return DoctorCheck(
+            "nvidia-smi",
+            "fail",
+            "Not found. TRELLIS.2 needs an NVIDIA CUDA GPU with at least 24 GB VRAM.",
+        )
 
     result = subprocess.run([nvidia_smi, "--query-gpu=name,memory.total", "--format=csv,noheader"], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
     if result.returncode != 0:
@@ -107,7 +111,11 @@ def _check_trellis_root(trellis_root: Path | None) -> DoctorCheck:
 
 def _check_tencent_instantmesh_root(instantmesh_root: Path | None) -> DoctorCheck:
     if not instantmesh_root:
-        return DoctorCheck("tencent-instantmesh-root", "warn", "Not provided. Pass --instantmesh-root /path/to/InstantMesh.")
+        return DoctorCheck(
+            "tencent-instantmesh-root",
+            "warn",
+            "Optional backend not provided. Pass --instantmesh-root /path/to/InstantMesh only when using InstantMesh.",
+        )
 
     instantmesh_root = instantmesh_root.resolve()
     if not instantmesh_root.exists():

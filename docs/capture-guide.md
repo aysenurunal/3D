@@ -21,7 +21,7 @@
 
 ## MVP Note
 
-The first InstantMesh workflow will run from one primary photo. The 5-6 photo set
+The first TRELLIS.2 workflow will run from one primary photo. The 5-6 photo set
 will still be useful for:
 
 - Selecting the best primary photo.

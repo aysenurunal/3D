@@ -1,15 +1,16 @@
 {
   "trellis_command_template": "python scripts/trellis2_image_to_3d.py --input {input} --output {output} --model {model}",
+  "generation_mode": "trellis2",
+  "mesh_convert_preset": "blender",
+  "mesh_convert_command_template": "blender --background --python scripts/blender_convert_mesh.py -- --input {input} --output {output}",
   "instantmesh_root": "/path/to/InstantMesh",
   "instantmesh_config": "configs/instant-mesh-large.yaml",
   "instantmesh_output_dir": "outputs/instantmesh",
   "multiview_command_template": "your-multiview-tool --images {images} --output {output}",
-  "generation_mode": "instantmesh",
-  "mesh_convert_preset": "blender",
-  "mesh_convert_command_template": "blender --background --python scripts/blender_convert_mesh.py -- --input {input} --output {output}",
   "notes": [
-    "TencentARC InstantMesh is the primary generator backend.",
-    "Run generation inside an environment where the selected backend and CUDA dependencies are installed.",
-    "Use the conversion command when a backend exports GLB and print-prep needs OBJ or STL."
+    "TRELLIS.2 is the primary generator backend.",
+    "Run TRELLIS.2 generation inside a Linux CUDA environment with enough GPU VRAM.",
+    "Use the conversion command when TRELLIS.2 exports GLB and print-prep needs OBJ or STL.",
+    "InstantMesh settings are optional fallback settings for comparison experiments."
   ]
 }
