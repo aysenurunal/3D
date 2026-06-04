@@ -65,6 +65,9 @@ photo-to-print run \
   --generation-mode trellis2 \
   --primary-name 02_front-left.jpg \
   --mesh-convert-preset blender \
+  --backend trimesh \
+  --target-max-dimension-mm 80 \
+  --require-watertight \
   --printable-output outputs/printable/object-test-01.stl
 ```
 

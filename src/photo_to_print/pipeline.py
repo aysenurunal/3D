@@ -37,6 +37,12 @@ def run_pipeline(
     instantmesh_save_video: bool,
     mesh_convert_command_template: str | None,
     mesh_convert_preset: str | None,
+    print_repair_command_template: str | None,
+    print_backend: str,
+    print_scale: float | None,
+    print_target_max_dimension_mm: float | None,
+    print_require_watertight: bool,
+    print_min_wall_thickness_mm: float | None,
     dry_run: bool = False,
 ) -> PipelineResult:
     generation_mode = _normalize_generation_mode(generation_mode)
@@ -119,6 +125,12 @@ def run_pipeline(
     print_prep = prepare_for_print(
         input_mesh=mesh_for_print,
         output_mesh=printable_output,
+        repair_command_template=print_repair_command_template,
+        backend=print_backend,
+        scale=print_scale,
+        target_max_dimension_mm=print_target_max_dimension_mm,
+        require_watertight=print_require_watertight,
+        min_wall_thickness_mm=print_min_wall_thickness_mm,
         dry_run=dry_run,
     )
     messages.append(print_prep.message)

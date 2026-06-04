@@ -135,6 +135,32 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--instantmesh-save-video", action="store_true")
     run_parser.add_argument("--mesh-convert-command-template", help="Command template for GLB-to-OBJ/PLY conversion.")
     run_parser.add_argument("--mesh-convert-preset", choices=("blender", "assimp"), help="Known converter preset.")
+    run_parser.add_argument(
+        "--backend",
+        choices=("auto", "builtin", "trimesh"),
+        default="auto",
+        help="Print-prep backend to use after generation and conversion.",
+    )
+    run_parser.add_argument("--scale", type=float, help="Uniform scale factor to apply during print prep.")
+    run_parser.add_argument(
+        "--target-max-dimension-mm",
+        type=float,
+        help="Scale the largest bounding-box axis to this size during print prep.",
+    )
+    run_parser.add_argument(
+        "--require-watertight",
+        action="store_true",
+        help="Fail the full pipeline if the prepared mesh is not watertight.",
+    )
+    run_parser.add_argument(
+        "--min-wall-thickness-mm",
+        type=float,
+        help="Record the intended wall-thickness threshold in the print-prep report.",
+    )
+    run_parser.add_argument(
+        "--repair-command-template",
+        help="Optional external print repair/conversion command. Supports {input}, {output}, and {report}.",
+    )
     run_parser.add_argument("--dry-run", action="store_true", help="Print external commands without running them.")
 
     return parser
@@ -273,6 +299,12 @@ def main(argv: list[str] | None = None) -> None:
                 instantmesh_save_video=args.instantmesh_save_video,
                 mesh_convert_command_template=args.mesh_convert_command_template,
                 mesh_convert_preset=args.mesh_convert_preset,
+                print_repair_command_template=args.repair_command_template,
+                print_backend=args.backend,
+                print_scale=args.scale,
+                print_target_max_dimension_mm=args.target_max_dimension_mm,
+                print_require_watertight=args.require_watertight,
+                print_min_wall_thickness_mm=args.min_wall_thickness_mm,
                 dry_run=args.dry_run,
             )
             for message in result.messages:
