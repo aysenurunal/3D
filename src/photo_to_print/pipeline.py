@@ -20,6 +20,8 @@ def run_pipeline(
     name: str,
     input_dir: Path,
     processed_dir: Path,
+    primary_strategy: str,
+    primary_name: str | None,
     raw_output: Path | None,
     mesh_for_print: Path | None,
     printable_output: Path | None,
@@ -54,7 +56,12 @@ def run_pipeline(
         )
 
     messages: list[str] = []
-    preprocess_result = preprocess_photos(input_dir=input_dir, output_dir=processed_dir)
+    preprocess_result = preprocess_photos(
+        input_dir=input_dir,
+        output_dir=processed_dir,
+        primary_strategy=primary_strategy,
+        primary_name=primary_name,
+    )
     messages.append(f"Imported {len(preprocess_result.photos)} photo(s).")
     messages.append(f"Primary image: {preprocess_result.primary_photo.processed_path}")
 

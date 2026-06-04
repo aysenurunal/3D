@@ -83,6 +83,7 @@ Run the default full pipeline with TRELLIS.2:
 photo-to-print run \
   --name object-test-01 \
   --generation-mode trellis2 \
+  --primary-name 02_front-left.jpg \
   --mesh-convert-preset blender \
   --printable-output outputs/printable/object-test-01.stl
 ```

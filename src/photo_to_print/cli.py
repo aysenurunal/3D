@@ -105,6 +105,13 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--name", required=True, help="Asset run name, for example 'mug-test-01'.")
     run_parser.add_argument("--input-dir", type=Path, default=Path("data/input_photos"))
     run_parser.add_argument("--processed-dir", type=Path, default=Path("data/processed"))
+    run_parser.add_argument(
+        "--primary-strategy",
+        choices=("largest-file", "first"),
+        default="largest-file",
+        help="How to choose the primary image for the MVP single-image generation step.",
+    )
+    run_parser.add_argument("--primary-name", help="Optional exact source filename to use as primary.")
     run_parser.add_argument("--raw-output", type=Path, help="Raw generated asset path.")
     run_parser.add_argument("--mesh-for-print", type=Path, help="OBJ/STL mesh passed into print preparation.")
     run_parser.add_argument("--printable-output", type=Path, help="Printable path. Defaults to outputs/printable/<name>.stl.")
@@ -249,6 +256,8 @@ def main(argv: list[str] | None = None) -> None:
                 name=args.name,
                 input_dir=args.input_dir,
                 processed_dir=args.processed_dir,
+                primary_strategy=args.primary_strategy,
+                primary_name=args.primary_name,
                 raw_output=args.raw_output,
                 mesh_for_print=args.mesh_for_print,
                 printable_output=args.printable_output,
